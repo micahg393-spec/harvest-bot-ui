@@ -179,7 +179,7 @@ function HomePanel() {
 function SettingsPanel() {
   const [enabled, setEnabled] = useState(() => settings.map(() => true));
   const [devices, setDevices] = useState<string[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<string | undefined>();
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const [manualAddress, setManualAddress] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
