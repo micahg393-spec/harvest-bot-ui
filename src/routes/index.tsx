@@ -191,10 +191,10 @@ function SettingsPanel() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = (await response.json()) as string[];
       setDevices(data);
-      setSelectedDevice(data.length > 0 ? data[0] : null);
+      setSelectedDevice(data.length > 0 ? data[0] : undefined);
     } catch {
       setDevices([]);
-      setSelectedDevice(null);
+      setSelectedDevice(undefined);
     } finally {
       setIsLoadingDevices(false);
     }
