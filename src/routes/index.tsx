@@ -306,10 +306,10 @@ function Index() {
         <header className="flex h-14 items-center justify-between border-b border-launcher-line px-4">
           <div className="flex items-center gap-3">
             <div className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-black text-primary-foreground">
-              H
+              M
             </div>
             <div>
-              <h1 className="text-xs font-black tracking-[0.14em]">HARVEST BOT</h1>
+              <h1 className="text-xs font-black tracking-[0.14em]">CLASH</h1>
               <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Clash Farm
               </p>
