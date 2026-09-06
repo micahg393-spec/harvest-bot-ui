@@ -13,7 +13,7 @@ import {
   ShieldCheck,
   Plus,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,10 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { API_BASE, logColor } from "@/lib/launcher-api";
+import { LauncherProvider, toggleLabels, useLauncher } from "@/lib/launcher-store";
 import { cn } from "@/lib/utils";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
