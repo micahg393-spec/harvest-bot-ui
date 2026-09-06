@@ -216,7 +216,7 @@ function SettingsPanel() {
           >
             <span className="text-sm font-medium text-secondary-foreground">{label}</span>
             <Switch
-              checked={enabled[index]}
+              checked={enabled[index] ?? false}
               onCheckedChange={(checked) =>
                 setEnabled((values) => values.map((value, i) => (i === index ? checked : value)))
               }
