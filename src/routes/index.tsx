@@ -31,7 +31,6 @@ import { API_BASE, logColor } from "@/lib/launcher-api";
 import { LauncherProvider, toggleLabels, useLauncher } from "@/lib/launcher-store";
 import { cn } from "@/lib/utils";
 
-
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -61,16 +60,6 @@ const tabs = [
   { id: "log" as const, label: "Log", icon: MessageSquareText },
 ];
 
-const settings = [
-  "Deploy Heroes Automatically",
-  "Use Rage Spells",
-  "Use Siege Machines",
-  "Auto Upgrade Walls",
-  "Stop When Storage Get Full",
-  "Donate Troops Before Attack",
-  "Ask For Donation Before Attack",
-];
-
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
     <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -80,16 +69,15 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 }
 
 function HomePanel() {
-  const [running, setRunning] = useState(false);
-  const [loot, setLoot] = useState([500]);
-  const [storage, setStorage] = useState([27]);
+  const { config, updateConfig, running, toggleRunning, stats, selectedDevice } = useLauncher();
+  const noDevice = !selectedDevice;
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-4">
         <label className="space-y-2">
           <FieldLabel>Select Mode</FieldLabel>
-          <Select defaultValue="home-village">
+          <Select value={config.mode} onValueChange={(mode) => updateConfig({ mode })}>
             <SelectTrigger className="h-11 border-launcher-line bg-launcher-control px-3.5 shadow-none hover:bg-launcher-control-hover">
               <SelectValue />
             </SelectTrigger>
@@ -101,7 +89,7 @@ function HomePanel() {
         </label>
         <label className="space-y-2">
           <FieldLabel>Select Army</FieldLabel>
-          <Select defaultValue="electric-dragon">
+          <Select value={config.army} onValueChange={(army) => updateConfig({ army })}>
             <SelectTrigger className="h-11 border-launcher-line bg-launcher-control px-3.5 shadow-none hover:bg-launcher-control-hover">
               <SelectValue />
             </SelectTrigger>
@@ -118,32 +106,47 @@ function HomePanel() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <FieldLabel>Minimum Loot Threshold</FieldLabel>
-            <span className="font-mono text-xs font-semibold text-primary">{loot[0]}k</span>
+            <span className="font-mono text-xs font-semibold text-primary">{config.loot}k</span>
           </div>
-          <Slider value={loot} onValueChange={setLoot} min={100} max={1000} step={50} />
+          <Slider
+            value={[config.loot]}
+            onValueChange={(value) => updateConfig({ loot: value[0] ?? config.loot })}
+            min={100}
+            max={1000}
+            step={50}
+          />
         </div>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <FieldLabel>Max Storage Capacity</FieldLabel>
             <span className="font-mono text-xs font-semibold text-primary">
-              {storage[0]?.toFixed(1)}M
+              {config.storage.toFixed(1)}M
             </span>
           </div>
-          <Slider value={storage} onValueChange={setStorage} min={5} max={40} step={0.5} />
+          <Slider
+            value={[config.storage]}
+            onValueChange={(value) => updateConfig({ storage: value[0] ?? config.storage })}
+            min={5}
+            max={40}
+            step={0.5}
+          />
         </div>
       </div>
 
-      <Button
-        className={cn(
-          "h-14 w-full text-sm font-black tracking-[0.18em] shadow-none transition-all active:scale-[0.99]",
-          running
-            ? "bg-run-stop text-run-stop-foreground hover:bg-run-stop/90"
-            : "bg-run-start text-run-start-foreground hover:bg-run-start/90",
-        )}
-        onClick={() => setRunning((value) => !value)}
-      >
-        {running ? "STOP" : "START"}
-      </Button>
+      <div title={noDevice ? "Connect an emulator in Settings first" : undefined}>
+        <Button
+          className={cn(
+            "h-14 w-full text-sm font-black tracking-[0.18em] shadow-none transition-all active:scale-[0.99]",
+            running
+              ? "bg-run-stop text-run-stop-foreground hover:bg-run-stop/90"
+              : "bg-run-start text-run-start-foreground hover:bg-run-start/90",
+          )}
+          disabled={noDevice}
+          onClick={() => void toggleRunning()}
+        >
+          {running ? "STOP" : "START"}
+        </Button>
+      </div>
 
       <section className="overflow-hidden rounded-lg border border-launcher-line bg-launcher-card">
         <div className="flex items-center justify-between border-b border-launcher-line px-4 py-3">
@@ -160,11 +163,11 @@ function HomePanel() {
         </div>
         <div className="grid grid-cols-5 divide-x divide-launcher-line">
           {[
-            ["Gold", "0", "text-session-gold"],
-            ["Elixir", "0", "text-session-elixir"],
-            ["Attack", "0", "text-session-cyan"],
-            ["Wall", "0", "text-session-cyan"],
-            ["Time Elapsed", "0m", "text-foreground"],
+            ["Gold", String(stats.gold), "text-session-gold"],
+            ["Elixir", String(stats.elixir), "text-session-elixir"],
+            ["Attacks", String(stats.attacks), "text-session-cyan"],
+            ["Wall", String(stats.walls), "text-session-cyan"],
+            ["Time Elapsed", stats.timeElapsed, "text-foreground"],
           ].map(([label, value, color]) => (
             <div className="px-3 py-4 text-center" key={label}>
               <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
@@ -180,32 +183,21 @@ function HomePanel() {
 }
 
 function SettingsPanel() {
-  const [enabled, setEnabled] = useState(() => settings.map(() => true));
-  const [devices, setDevices] = useState<string[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState<string | undefined>();
-  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const {
+    devices,
+    selectedDevice,
+    setSelectedDevice,
+    isLoadingDevices,
+    fetchDevices,
+    config,
+    setToggle,
+  } = useLauncher();
   const [manualAddress, setManualAddress] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
 
-  const fetchDevices = async () => {
-    setIsLoadingDevices(true);
-    try {
-      const response = await fetch("http://localhost:8000/api/devices");
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = (await response.json()) as string[];
-      setDevices(data);
-      setSelectedDevice(data.length > 0 ? data[0] : undefined);
-    } catch {
-      setDevices([]);
-      setSelectedDevice(undefined);
-    } finally {
-      setIsLoadingDevices(false);
-    }
-  };
-
   const handleRestartAdb = async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/adb/restart", { method: "POST" });
+      const response = await fetch(`${API_BASE}/api/adb/restart`, { method: "POST" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       toast.success("ADB server restarted");
       void fetchDevices();
@@ -218,7 +210,7 @@ function SettingsPanel() {
     const address = manualAddress.trim();
     if (!address) return;
     try {
-      const response = await fetch("http://localhost:8000/api/connect", {
+      const response = await fetch(`${API_BASE}/api/connect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address }),
@@ -232,10 +224,6 @@ function SettingsPanel() {
       toast.error(`Failed to connect to ${address}`);
     }
   };
-
-  useEffect(() => {
-    void fetchDevices();
-  }, []);
 
   return (
     <div className="space-y-5">
@@ -322,17 +310,15 @@ function SettingsPanel() {
       </div>
 
       <section className="overflow-hidden rounded-lg border border-launcher-line bg-launcher-card">
-        {settings.map((label, index) => (
+        {toggleLabels.map((label) => (
           <label
             className="flex cursor-pointer items-center justify-between border-b border-launcher-line px-4 py-3.5 last:border-b-0 hover:bg-launcher-card-raised"
             key={label}
           >
             <span className="text-sm font-medium text-secondary-foreground">{label}</span>
             <Switch
-              checked={enabled[index] ?? false}
-              onCheckedChange={(checked) =>
-                setEnabled((values) => values.map((value, i) => (i === index ? checked : value)))
-              }
+              checked={config.toggles[label] ?? false}
+              onCheckedChange={(checked) => setToggle(label, checked)}
             />
           </label>
         ))}
@@ -356,11 +342,14 @@ function ProfilePanel() {
 }
 
 function LogPanel() {
-  const [autoScroll, setAutoScroll] = useState(true);
-  const [lines, setLines] = useState([
-    { time: "15:42:08", text: "Input backend: sendevent (fast)", color: "text-terminal-green" },
-    { time: "15:42:09", text: "Searching for a base to attack...", color: "text-terminal-purple" },
-  ]);
+  const { logs, clearLogs, autoScroll, setAutoScroll } = useLauncher();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!autoScroll) return;
+    const node = scrollRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [logs, autoScroll]);
 
   return (
     <div className="space-y-4">
@@ -370,28 +359,33 @@ function LogPanel() {
           Auto-scroll
         </label>
         <div className="flex items-center gap-3">
-          <span className="font-mono text-[11px] text-muted-foreground">{lines.length} lines</span>
+          <span className="font-mono text-[11px] text-muted-foreground">{logs.length} lines</span>
           <Button
             variant="ghost"
             size="sm"
             className="text-muted-foreground hover:bg-launcher-control-hover hover:text-foreground"
-            onClick={() => setLines([])}
+            onClick={clearLogs}
           >
             <Trash2 />
             Clear
           </Button>
         </div>
       </div>
-      <div className="min-h-[390px] rounded-lg border border-launcher-line bg-background p-4 font-mono text-xs leading-7 shadow-inner">
-        {lines.length ? (
-          lines.map((line) => (
-            <p key={`${line.time}-${line.text}`} className={line.color}>
-              <span className="mr-3 text-muted-foreground">[{line.time}]</span>
-              {line.text}
+      <div
+        ref={scrollRef}
+        className="h-[390px] overflow-y-auto rounded-lg border border-launcher-line bg-background p-4 font-mono text-xs leading-7 shadow-inner"
+      >
+        {logs.length ? (
+          logs.map((line, index) => (
+            <p key={`${line.timestamp}-${index}`} className={logColor(line.type)}>
+              <span className="mr-3 text-muted-foreground">[{line.timestamp}]</span>
+              {line.message}
             </p>
           ))
         ) : (
-          <p className="text-muted-foreground">No log entries.</p>
+          <p className="text-muted-foreground">
+            Waiting for the local bot backend to stream logs...
+          </p>
         )}
       </div>
     </div>
@@ -407,84 +401,86 @@ function Index() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background p-6">
         <Button variant="outline" onClick={() => setClosed(false)}>
-          Open Harvest Bot
+          Open Clash Farm
         </Button>
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <section className="launcher-glow w-full max-w-[680px] overflow-hidden rounded-xl border border-launcher-line-strong bg-launcher-shell">
-        <header className="flex h-14 items-center justify-between border-b border-launcher-line px-4">
-          <div className="flex items-center gap-3">
-            <div className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-black text-primary-foreground">
-              M
-            </div>
-            <div>
-              <h1 className="text-xs font-black tracking-[0.14em]">CLASH</h1>
-              <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Clash Farm
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              aria-label={minimized ? "Restore window" : "Minimize window"}
-              title={minimized ? "Restore" : "Minimize"}
-              variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground hover:bg-launcher-control-hover hover:text-foreground"
-              onClick={() => setMinimized((value) => !value)}
-            >
-              <Minus />
-            </Button>
-            <Button
-              aria-label="Close window"
-              title="Close"
-              variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
-              onClick={() => setClosed(true)}
-            >
-              <X />
-            </Button>
-          </div>
-        </header>
-
-        {!minimized && (
-          <>
-            <nav className="border-b border-launcher-line px-4 py-2" aria-label="Launcher navigation">
-              <div className="grid grid-cols-4 gap-1 rounded-lg bg-launcher-card p-1">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon;
-                  return (
-                    <Button
-                      key={tab.id}
-                      variant="ghost"
-                      className={cn(
-                        "h-9 gap-2 text-xs text-muted-foreground hover:bg-launcher-control-hover hover:text-foreground",
-                        activeTab === tab.id && "bg-launcher-tab text-primary hover:bg-launcher-tab",
-                      )}
-                      onClick={() => setActiveTab(tab.id)}
-                    >
-                      <Icon />
-                      {tab.label}
-                    </Button>
-                  );
-                })}
+    <LauncherProvider>
+      <main className="flex min-h-screen items-center justify-center bg-background p-6">
+        <section className="launcher-glow w-full max-w-[680px] overflow-hidden rounded-xl border border-launcher-line-strong bg-launcher-shell">
+          <header className="flex h-14 items-center justify-between border-b border-launcher-line px-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-black text-primary-foreground">
+                M
               </div>
-            </nav>
-
-            <div className="p-5">
-              {activeTab === "home" && <HomePanel />}
-              {activeTab === "settings" && <SettingsPanel />}
-              {activeTab === "profile" && <ProfilePanel />}
-              {activeTab === "log" && <LogPanel />}
+              <div>
+                <h1 className="text-xs font-black tracking-[0.14em]">CLASH</h1>
+                <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Clash Farm
+                </p>
+              </div>
             </div>
-          </>
-        )}
-      </section>
-    </main>
+            <div className="flex items-center gap-1">
+              <Button
+                aria-label={minimized ? "Restore window" : "Minimize window"}
+                title={minimized ? "Restore" : "Minimize"}
+                variant="ghost"
+                size="icon"
+                className="size-8 text-muted-foreground hover:bg-launcher-control-hover hover:text-foreground"
+                onClick={() => setMinimized((value) => !value)}
+              >
+                <Minus />
+              </Button>
+              <Button
+                aria-label="Close window"
+                title="Close"
+                variant="ghost"
+                size="icon"
+                className="size-8 text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+                onClick={() => setClosed(true)}
+              >
+                <X />
+              </Button>
+            </div>
+          </header>
+
+          {!minimized && (
+            <>
+              <nav className="border-b border-launcher-line px-4 py-2" aria-label="Launcher navigation">
+                <div className="grid grid-cols-4 gap-1 rounded-lg bg-launcher-card p-1">
+                  {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <Button
+                        key={tab.id}
+                        variant="ghost"
+                        className={cn(
+                          "h-9 gap-2 text-xs text-muted-foreground hover:bg-launcher-control-hover hover:text-foreground",
+                          activeTab === tab.id && "bg-launcher-tab text-primary hover:bg-launcher-tab",
+                        )}
+                        onClick={() => setActiveTab(tab.id)}
+                      >
+                        <Icon />
+                        {tab.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </nav>
+
+              <div className="p-5">
+                {activeTab === "home" && <HomePanel />}
+                {activeTab === "settings" && <SettingsPanel />}
+                {activeTab === "profile" && <ProfilePanel />}
+                {activeTab === "log" && <LogPanel />}
+              </div>
+            </>
+          )}
+        </section>
+      </main>
+    </LauncherProvider>
   );
 }
