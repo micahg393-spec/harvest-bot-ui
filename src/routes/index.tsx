@@ -11,10 +11,13 @@ import {
   Crosshair,
   Trash2,
   ShieldCheck,
+  Plus,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -175,30 +178,137 @@ function HomePanel() {
 
 function SettingsPanel() {
   const [enabled, setEnabled] = useState(() => settings.map(() => true));
+  const [devices, setDevices] = useState<string[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<string | undefined>();
+  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const [manualAddress, setManualAddress] = useState("");
+  const [showManualInput, setShowManualInput] = useState(false);
+
+  const fetchDevices = async () => {
+    setIsLoadingDevices(true);
+    try {
+      const response = await fetch("http://localhost:8000/api/devices");
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = (await response.json()) as string[];
+      setDevices(data);
+      setSelectedDevice(data.length > 0 ? data[0] : undefined);
+    } catch {
+      setDevices([]);
+      setSelectedDevice(undefined);
+    } finally {
+      setIsLoadingDevices(false);
+    }
+  };
+
+  const handleRestartAdb = async () => {
+    try {
+      const response = await fetch("http://localhost:8000/api/adb/restart", { method: "POST" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      toast.success("ADB server restarted");
+      void fetchDevices();
+    } catch {
+      toast.error("Failed to restart ADB server");
+    }
+  };
+
+  const handleManualConnect = async () => {
+    const address = manualAddress.trim();
+    if (!address) return;
+    try {
+      const response = await fetch("http://localhost:8000/api/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      toast.success(`Connected to ${address}`);
+      setManualAddress("");
+      setShowManualInput(false);
+      void fetchDevices();
+    } catch {
+      toast.error(`Failed to connect to ${address}`);
+    }
+  };
+
+  useEffect(() => {
+    void fetchDevices();
+  }, []);
 
   return (
     <div className="space-y-5">
       <div className="space-y-2">
         <FieldLabel>Select Device</FieldLabel>
         <div className="flex gap-2">
-          <Select defaultValue="emulator-5554">
-            <SelectTrigger className="h-11 flex-1 border-launcher-line bg-launcher-control px-3.5 font-mono text-xs shadow-none hover:bg-launcher-control-hover">
-              <SelectValue />
+          <Select
+            {...(selectedDevice ? { value: selectedDevice } : {})}
+            onValueChange={(value) => setSelectedDevice(value)}
+            disabled={devices.length === 0 || isLoadingDevices}
+          >
+            <SelectTrigger className="h-11 flex-1 border-launcher-line bg-launcher-control px-3.5 font-mono text-xs shadow-none hover:bg-launcher-control-hover disabled:opacity-50">
+              <SelectValue placeholder={isLoadingDevices ? "Scanning..." : "No devices detected"} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="emulator-5554">emulator-5554</SelectItem>
-              <SelectItem value="emulator-5556">emulator-5556</SelectItem>
+              {devices.map((device) => (
+                <SelectItem key={device} value={device}>
+                  {device}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          <Button variant="secondary" className="h-11 bg-launcher-control hover:bg-launcher-control-hover">
-            <RefreshCw />
+          <Button
+            variant="secondary"
+            className="h-11 bg-launcher-control hover:bg-launcher-control-hover"
+            onClick={() => void fetchDevices()}
+            disabled={isLoadingDevices}
+          >
+            <RefreshCw className={cn("transition-transform", isLoadingDevices && "animate-spin")} />
             Refresh
           </Button>
         </div>
+        {devices.length === 0 && !isLoadingDevices && (
+          <p className="text-xs text-destructive/80">
+            No active emulator found. Ensure ADB is enabled in LDPlayer/BlueStacks.
+          </p>
+        )}
+
+        {!showManualInput ? (
+          <button
+            type="button"
+            onClick={() => setShowManualInput(true)}
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
+            <Plus size={14} />
+            Add manual IP:Port
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <Input
+              placeholder="127.0.0.1:5555"
+              value={manualAddress}
+              onChange={(e) => setManualAddress(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleManualConnect();
+              }}
+              className="h-9 flex-1 border-launcher-line bg-launcher-control font-mono text-xs shadow-none placeholder:text-muted-foreground focus-visible:ring-primary"
+            />
+            <Button
+              size="sm"
+              className="h-9 bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => void handleManualConnect()}
+              disabled={!manualAddress.trim()}
+            >
+              Connect
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Button variant="outline" className="h-11 border-launcher-line bg-launcher-card hover:bg-launcher-control-hover">
+        <Button
+          variant="outline"
+          className="h-11 border-launcher-line bg-launcher-card hover:bg-launcher-control-hover"
+          onClick={() => void handleRestartAdb()}
+        >
           <RotateCcw />
           Restart ADB Server
         </Button>
