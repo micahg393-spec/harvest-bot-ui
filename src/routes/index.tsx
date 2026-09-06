@@ -240,7 +240,7 @@ function SettingsPanel() {
         <FieldLabel>Select Device</FieldLabel>
         <div className="flex gap-2">
           <Select
-            value={selectedDevice ?? undefined}
+            value={selectedDevice}
             onValueChange={(value) => setSelectedDevice(value)}
             disabled={devices.length === 0 || isLoadingDevices}
           >
