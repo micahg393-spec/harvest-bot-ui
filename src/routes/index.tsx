@@ -101,7 +101,7 @@ function HomePanel() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="electric-dragon">Electric Dragon</SelectItem>
-              <SelectItem value="dragon-rider">Dragon Rider</SelectItem>
+              <SelectItem value="super-goblin">Super Goblin</SelectItem>
               <SelectItem value="super-barbarian">Super Barbarian</SelectItem>
             </SelectContent>
           </Select>
